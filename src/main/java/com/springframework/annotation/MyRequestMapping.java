@@ -17,5 +17,8 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Documented
 public @interface MyRequestMapping {
+
+     //目前为了简单的测试，只做了单个url可以扩展为数组
      String value() default "";
+
 }

@@ -5,4 +5,7 @@ package com.kabasiji.service;
  * @date 2018-12-28 19:19
  **/
 public interface IDemoService {
+
+     void print(String name);
+
 }

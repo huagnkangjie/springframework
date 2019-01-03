@@ -17,6 +17,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -66,16 +67,18 @@ public class MyDispatcherServlet extends HttpServlet {
           //5、初始化handerMapping
           initHandlerMapping();
 
+          System.out.println(">>>>>>>>>>>>>>>> spring init scuccess!!!");
+
      }
 
      @Override
      protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
-
+          this.doDispatch(req, resp);
      }
 
      @Override
      protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
-
+          this.doDispatch(req, resp);
      }
 
      /**
@@ -86,6 +89,7 @@ public class MyDispatcherServlet extends HttpServlet {
           InputStream fis = null;
           try {
                fis = this.getClass().getClassLoader().getResourceAsStream(initParameter);
+               this.pro.load(fis);
           } catch (Exception e) {
                System.err.print("加载配置文件出错......");
                e.printStackTrace();
@@ -137,6 +141,11 @@ public class MyDispatcherServlet extends HttpServlet {
                return "";
           }
           return str.substring(0, 1) + str.substring(1, str.length());
+
+          //利用asic码转换
+          //char [] chars =  str.toCharArray();
+          //chars[0] += 32;
+          //return String.valueOf(chars);
      }
 
      /**
@@ -152,7 +161,7 @@ public class MyDispatcherServlet extends HttpServlet {
                     //处理controller注解
                     if(clazz.isAnnotationPresent(MyController.class)) {
                          //默认将首字母小写作为beanName
-                         String beanName = this.lowerFirstCase(clazz.getName());
+                         String beanName = this.lowerFirstCase(clazz.getSimpleName());
                          //实例化bean，并根据beanName存放bean的实例化对象
                          this.ioc.put(beanName, clazz.newInstance());
                     }
@@ -173,7 +182,7 @@ public class MyDispatcherServlet extends HttpServlet {
                          Class<?>[] interfaces = clazz.getInterfaces();
                          for(Class<?> i : interfaces) {
                               this.checkBean(beanName);
-                              this.ioc.put(i.getName(), i.newInstance());
+                              this.ioc.put(i.getName(), clazz.newInstance());
                          }
                     }
 
@@ -230,6 +239,9 @@ public class MyDispatcherServlet extends HttpServlet {
 
      }
 
+     /**
+      * 初始化url与method的适配
+      */
      private void initHandlerMapping() {
           if(this.ioc.isEmpty()) {
                return;
@@ -247,6 +259,75 @@ public class MyDispatcherServlet extends HttpServlet {
                     MyRequestMapping requestMapping = clazz.getAnnotation(MyRequestMapping.class);
                     baseUrl = requestMapping.value();
                }
+               //获取该类的所有方法
+               Method[] methods = clazz.getMethods();
+               for(Method method : methods) {
+                    if(!method.isAnnotationPresent(MyRequestMapping.class)) {
+                         continue;
+                    }
+                    MyRequestMapping requestMapping = method.getAnnotation(MyRequestMapping.class);
+                    String url = ("/" + baseUrl + "/" + requestMapping.value()).replaceAll("/+", "/");
+                    this.handlerMappering.put(url, method);
+                    System.out.println("requestmapping handler: " + url);
+
+               }
+
+
+          }
+     }
+
+     /**
+      * 根据url解析找到对应的method，通过反射执行
+      * @param req
+      * @param resp
+      */
+     private void doDispatch(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+          if(this.handlerMappering.isEmpty()) {
+               return;
+          }
+
+          String url = req.getRequestURI();
+          String contextPath = req.getContextPath();
+          url = url.replace(contextPath, "").replaceAll("/+", "/");
+
+          if(!this.handlerMappering.containsKey(url)) {
+               resp.getWriter().write("404 Not Found!");
+               return;
+          }
+          Method method = this.handlerMappering.get(url);
+          //获取请求的参数
+          Map<String, String[]> parameterMap = req.getParameterMap();
+          //获取方法的参数列表
+          Class<?>[] parameterTypes = method.getParameterTypes();
+          //保存参数值
+          Object[] paramValues = new Object[parameterTypes.length];
+          //根据参数列表遍历参数
+          for( int i = 0; i < parameterTypes.length; i++) {
+               Class parameterType = parameterTypes[i];
+               if(parameterType == HttpServletRequest.class) {
+                    paramValues[i] = req;
+                    continue;
+               } else if(parameterType == HttpServletResponse.class) {
+                    paramValues[i] = resp;
+                    continue;
+               } else if(parameterType == String.class) {
+                    for (Map.Entry<String, String[]> param : parameterMap.entrySet()) {
+                         String value = Arrays.toString(param.getValue())
+                                 .replaceAll("\\[|\\]", "")
+                                 .replaceAll("\\s", "");
+                         paramValues[i] = value;
+                    }
+               }
+
+               try {
+                    String beanName = this.lowerFirstCase(method.getDeclaringClass().getSimpleName());
+                    //反射
+                    method.invoke(this.ioc.get(beanName), paramValues);
+               } catch (Exception e) {
+                    System.err.println("invoke 出错");
+                    e.printStackTrace();
+               }
+
           }
      }
 
