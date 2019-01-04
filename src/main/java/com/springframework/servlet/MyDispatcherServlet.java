@@ -318,16 +318,14 @@ public class MyDispatcherServlet extends HttpServlet {
                          paramValues[i] = value;
                     }
                }
-
-               try {
-                    String beanName = this.lowerFirstCase(method.getDeclaringClass().getSimpleName());
-                    //反射
-                    method.invoke(this.ioc.get(beanName), paramValues);
-               } catch (Exception e) {
-                    System.err.println("invoke 出错");
-                    e.printStackTrace();
-               }
-
+          }
+          try {
+               String beanName = this.lowerFirstCase(method.getDeclaringClass().getSimpleName());
+               //反射
+               method.invoke(this.ioc.get(beanName), paramValues);
+          } catch (Exception e) {
+               System.err.println("invoke 出错");
+               e.printStackTrace();
           }
      }
 
